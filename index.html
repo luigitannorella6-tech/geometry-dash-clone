@@ -1,22 +1,22 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>HTML5 Platformer Engine - Stage 3</title>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"><title>HTML5 Platformer Engine - Stage 3 Mobile Fixed</title>
 <style>
-body{margin:0;overflow:hidden;background-color:#1a1a1a;color:white;font-family:sans-serif;user-select:none;}
-canvas{display:block;}
+body{margin:0;overflow:hidden;background-color:#1a1a1a;color:white;font-family:sans-serif;user-select:none;touch-action:none;}
+canvas{display:block;position:absolute;top:0;left:0;z-index:1;}
 #ui-layer{position:absolute;top:10px;left:10px;z-index:10;pointer-events:none;display:none;}
 .ui-btn{pointer-events:auto;background:#333;color:#fff;border:1px solid #555;padding:5px 10px;cursor:pointer;margin-right:5px;}
 .ui-btn:hover{background:#555;}
 .overlay{position:absolute;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.85);display:flex;flex-direction:column;justify-content:center;align-items:center;z-index:20;}
-.overlay h1{font-size:3.5rem;margin-bottom:30px;color:#00ffaa;text-shadow:0 0 10px rgba(0,255,170,0.5);}
+.overlay h1{font-size:3.5rem;margin-bottom:30px;color:#00ffaa;text-shadow:0 0 10px rgba(0,255,170,0.5);text-align:center;}
 #game-over-menu h1{color:#ff3366;text-shadow:0 0 10px rgba(255,51,102,0.5);}
 .menu-btn{background:#00ffaa;color:#1a1a1a;border:none;padding:15px 40px;font-size:1.5rem;margin:10px;cursor:pointer;border-radius:5px;font-weight:bold;text-transform:uppercase;transition:transform 0.1s,background 0.1s;}
 .menu-btn:hover{background:#33ffbb;transform:scale(1.05);}
 .menu-btn.danger{background:#ff3366;color:white;}
 .menu-btn.danger:hover{background:#ff5588;}
-.import-section{margin-top:40px;padding:20px;background:#222;border-radius:8px;display:flex;gap:10px;align-items:center;border:1px solid #444;}
-.import-input{padding:10px;font-size:1rem;width:300px;border-radius:4px;border:1px solid #555;background:#111;color:#00ffaa;}
+.import-section{margin-top:40px;padding:20px;background:#222;border-radius:8px;display:flex;gap:10px;align-items:center;border:1px solid #444;flex-wrap:wrap;justify-content:center;}
+.import-input{padding:10px;font-size:1rem;width:250px;border-radius:4px;border:1px solid #555;background:#111;color:#00ffaa;}
 .import-input:focus{outline:none;border-color:#00ffaa;}
 .import-btn{background:#444;color:white;border:none;padding:10px 20px;font-size:1rem;cursor:pointer;border-radius:4px;}
 .import-btn:hover{background:#666;}
@@ -38,9 +38,10 @@ canvas{display:block;}
     <button class="menu-btn" onclick="window.gameEngine.changeState('MENU')">Main Menu</button>
 </div>
 <div id="ui-layer">
-    <button class="ui-btn" onclick="window.gameEngine.exportLevel()">Export Level</button>
-    <button class="ui-btn" onclick="window.gameEngine.importLevel()">Import Level</button>
-    <span id="mode-text">Mode: EDIT (Press 'E' to test) - Use Arrow/WASD Keys to pan</span>
+    <button class="ui-btn" onclick="window.gameEngine.exportLevel()">Export</button>
+    <button class="ui-btn" onclick="window.gameEngine.importLevel()">Import</button>
+    <button class="ui-btn" onclick="window.gameEngine.toggleMode()" style="background:#00ffaa;color:#000;">Toggle Play/Edit</button>
+    <span id="mode-text" style="background:rgba(0,0,0,0.5);padding:5px;border-radius:4px;">Mode: EDIT - Tap to jump</span>
 </div>
 <canvas id="gameCanvas"></canvas>
 <script>
@@ -55,15 +56,28 @@ window.gameEngine={
         window.addEventListener('keyup',(e)=>this.keys[e.code]=false);
         this.canvas.addEventListener('mousedown',(e)=>this.handleMouse(e));
         this.canvas.addEventListener('contextmenu',(e)=>e.preventDefault());
+        
+        this.canvas.addEventListener('touchstart',(e)=>{e.preventDefault();this.keys['Space']=true;},{passive:false});
+        this.canvas.addEventListener('touchend',(e)=>{e.preventDefault();this.keys['Space']=false;},{passive:false});
+        
         this.generateDefaultFloor();
+        this.changeState('MENU');
         requestAnimationFrame(()=>this.loop());
     },
     changeState(newState){
         this.state=newState;
         document.getElementById('main-menu').style.display=(newState==='MENU')?'flex':'none';
         document.getElementById('game-over-menu').style.display=(newState==='GAMEOVER')?'flex':'none';
-        document.getElementById('ui-layer').style.display=(newState==='EDITING')?'block':'none';
+        document.getElementById('ui-layer').style.display=(newState==='EDITING'||newState==='PLAYING')?'block':'none';
+        
         if(newState==='PLAYING'||newState==='EDITING')this.resetPlayer();
+        
+        if(newState==='EDITING'){
+            document.getElementById('mode-text').innerText="Mode: EDIT - Tap/E to jump";
+        }else if(newState==='PLAYING'){
+            document.getElementById('mode-text').innerText="Mode: PLAY - Tap/E to jump";
+        }
+
         if(newState==='GAMEOVER'){
             this.shakeTimer=15;
             for(let i=0;i<25;i++){
@@ -75,14 +89,15 @@ window.gameEngine={
             }
         }
     },
+    toggleMode(){
+        if(this.state==='PLAYING')this.changeState('EDITING');
+        else if(this.state==='EDITING')this.changeState('PLAYING');
+    },
     resize(){this.canvas.width=window.innerWidth;this.canvas.height=window.innerHeight;},
     generateDefaultFloor(){for(let i=0;i<25;i++)this.levelData[`${i},10`]=1;},
     handleKeyDown(e){
         this.keys[e.code]=true;
-        if(e.code==='KeyE'){
-            if(this.state==='PLAYING')this.changeState('EDITING');
-            else if(this.state==='EDITING')this.changeState('PLAYING');
-        }
+        if(e.code==='KeyE')this.toggleMode();
     },
     handleMouse(e){
         if(this.state!=='EDITING')return;
